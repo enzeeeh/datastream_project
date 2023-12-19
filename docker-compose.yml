@@ -1,0 +1,125 @@
+version: '3.5'
+
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:6.2.0
+    environment:
+      - ZOOKEEPER_CLIENT_PORT=32181
+    ports:
+      - 32181:32181
+    networks:
+      - hai-security-network
+
+  kafkaManager:
+    image: hlebalbau/kafka-manager:stable
+    ports:
+      - "9000:9000"
+    environment:
+      ZK_HOSTS: "zookeeper:32181"
+      APPLICATION_SECRET: "random-secret"
+    networks:
+      - hai-security-network
+      
+  kafka:
+    image: confluentinc/cp-kafka:6.2.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    networks:
+      - hai-security-network
+    ports:
+      - 9092:9092
+      - 30001:30001
+    environment:
+      KAFKA_CREATE_TOPICS: "hai-security:1:1,classification:1:1" # Topic:Partitions:ReplicationFactor
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:32181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092" 
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+
+      
+  pyspark:
+    container_name: pyspark
+    image: docker.io/bitnami/spark:3
+    hostname: spark
+    build: ./spark
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+        - 8080:8080
+    networks:
+        - hai-security-network
+    volumes:
+        - ./spark:/spark:rw
+        - ./model:/model:rw
+        - ./checkpoint:/checkpoint:rw
+
+  influxdb:
+    container_name: influxdb
+    image: influxdb:2.4.0-alpine
+    restart: always
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+    ports:
+      - 8086:8086
+    environment:
+      - INFLUXDB_DB=${INFLUXDB_DB}
+      - INFLUXDB_USER_BUCKET=${BUCKET}
+      - INFLUXDB_ADMIN_USER=${ADMIN_USERNAME}
+      - INFLUXDB_ADMIN_USER_PASSWORD=${ADMIN_PASSWORD}
+      - INFLUXDB_ADMIN_USER_TOKEN=${AUTH_TOKEN}
+    networks:
+      - hai-security-network
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana-oss:9.1.8
+    ports:
+      - 3000:3000
+    restart: always
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+    depends_on:
+      - influxdb
+    networks:
+      - hai-security-network
+
+  telegraf:
+    container_name: telegraf
+    image: telegraf:latest
+    restart: always
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    depends_on:
+      - influxdb
+    links:
+      - influxdb
+    ports:
+      - 8125:8125
+    networks:
+      - hai-security-network
+    
+networks:
+  hai-security-network:
+    driver: bridge
+
+volumes:
+  grafana-data:
+  chronograf-storage:
+  influxdb-data:
+ 
+
+
