@@ -4,7 +4,10 @@ from pyspark.sql.types import StructType, StructField, StringType
 import xgboost as xgb
 import pickle
 import pandas as pd
+import pyspark
 from pyspark.sql.functions import udf
+from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 model_path = '/spark/model/best_xgb.pkl'
 model = pickle.load(open(model_path, 'rb'))
@@ -167,29 +170,51 @@ result_df = df.withColumn("classification", classify_udf(
 
 output_topic = 'classification'
 
-# row_df = df.select(
-#     to_json(struct("classification")).alias(
-#         'key'),
-#     to_json(struct(*[col for col in df.columns])
-#             ).alias("value")
-# )
 
-
-query = result_df.writeStream \
-    .outputMode("append") \
-    .format("console") \
-    .start()
-
-query.awaitTermination()
-
-
-# query = row_df \
-#     .selectExpr("CAST(key AS STRING)", "CAST(value AS STRING)") \
-#     .writeStream \
-#     .format("kafka") \
-#     .option("kafka.bootstrap.servers", "kafka:29092") \
-#     .option("topic", output_topic) \
-#     .option("checkpointLocation", "/spark/checkpoint") \
+# query = result_df.writeStream \
+#     .outputMode("append") \
+#     .format("console") \
 #     .start()
 
 # query.awaitTermination()
+
+
+def write_to_influx(df, epoch_id):
+    # Code to create a connection to InfluxDB
+    # Convert iterator to DataFrame or use it as is
+    if df.rdd.isEmpty():
+        return
+
+    pandas_df = df.toPandas()
+    influxdb_url = "http://influxdb:8086"  # Adjust if needed
+    # Replace with your InfluxDB token
+    token = 'O8pkG8unGMgqaA7zUKNpbEuAWRhTCU0-sxAf-24Iz0QUrT-2g4XaUOlZq6XOKtlmxubT9n0QzBTY_gpb11SxMA=='
+    org = 'indonesia'  # Replace with your InfluxDB organization
+    bucket = 'bucket-wido'  # Replace with your InfluxDB bucket
+
+    # Establish a connection to InfluxDB
+    client = InfluxDBClient(url=influxdb_url, token=token, org=org)
+    write_api = client.write_api(write_options=SYNCHRONOUS)
+
+    for index, row in pandas_df.iterrows():
+        # Replace with your measurement name
+        dataPoint = Point("classification")
+
+        # Add tags and fields from row
+        for key, value in row.items():
+            if key != "timestamp":
+                dataPoint.field(key, value)
+
+        # Write data point to InfluxDB
+        write_api.write(bucket=bucket, record=dataPoint)
+
+    client.close()
+
+
+query = result_df.writeStream \
+    .foreachBatch(write_to_influx) \
+    .outputMode("update") \
+    .option("checkpointLocation", "/checkpoint") \
+    .start()
+
+query.awaitTermination()
