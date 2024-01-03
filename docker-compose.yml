@@ -46,6 +46,7 @@ services:
   pyspark:
     container_name: pyspark
     image: docker.io/bitnami/spark:3
+    user: root
     hostname: spark
     build: ./spark
     environment:
