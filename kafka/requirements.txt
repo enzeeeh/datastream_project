@@ -1,0 +1,4 @@
+# Python 3.10
+kafka-python==2.0.2
+confluent-kafka==2.3.0
+influxdb_client==1.39.0
