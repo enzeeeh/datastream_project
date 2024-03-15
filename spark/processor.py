@@ -153,9 +153,6 @@ def classify(features):
 
         # Directly use pandas_df for prediction
         prediction = model.predict(pandas_df)
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-        print(prediction[0])
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
 
         return 'Anomaly' if prediction[0] == 1 else 'Normal'
 

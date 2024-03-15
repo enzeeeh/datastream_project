@@ -13,7 +13,7 @@ replication_factor = 1
 
 # InfluxDB configuration
 influxdb_url = "http://localhost:8086"
-token = "9XkMEDhwP4qWHEb3Un3FETeXdtfGyipG1GJZLNI7yt07Na2bXfLWY4V-yjMiXLNfOWPGeNlplfph6DdV3NXcxQ=="
+token = "DB3CCM0Lag7qYDItgmQyl2WP9UZnSIoICLr18hnsvKhA8njY-CP_WQUAoX6SwLbsyC_C5R2WOrqIDbTtuyTbiw=="
 org = "securityDataset"
 bucket = "securityDataset"
 
